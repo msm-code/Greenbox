@@ -1,6 +1,5 @@
 import hashlib
 
-
 class Param(object):
     def __init__(self, name, value):
         self.name = name
@@ -31,11 +30,14 @@ class PseudoBinaryData:
         return PseudoBinaryData(self.to_string())
 
 
-UINT_1 = 0x92192838
+INT_1 = 0x42192838
 STRING_25 = 'asifkewrfoerfperkgfergeor\0'
 STRING_15 = '94jfjdoisjfjjfj\0'
 STRING_10 = 'xcvwoxcvnw\0'
+STRING_NUMERIC = '123543\0'
+STRING_HEX = 'a8d3cc\0'
 STRING_5 = 'odifd\0'
+BYTE_POSITIVE = ord('a')
 
 def get_function_arg_names(func):
     argcount = func.func_code.co_argcount
@@ -68,7 +70,6 @@ class SignatureDatabase:
             
             values = [bytearray(arg) if isinstance(arg, basestring) else arg for arg in args]
             return_value = func(*values)
-            #values = [arg.to_string() if isinstance(arg, PseudoBinaryData) else arg for arg in args]
 
             preconditions = [Param(n, v) for n, v in zip(names, args)]
             postconditions = [Param(n, v) for n, v in zip(names, values)]
@@ -76,7 +77,6 @@ class SignatureDatabase:
             if return_value is not None:
                 postconditions.append(Param('$retval', return_value))
 
-            # execute func with args
             sig = SimpleSignature(func.__name__, preconditions, postconditions)
             self.signatures.append(sig)
             return func
@@ -108,7 +108,7 @@ def strcat(destination, source):
         destination[start+i] = source[i]
 
 
-@db.example(STRING_15, ord('a'), 10)
+@db.example(STRING_15, BYTE_POSITIVE, 10)
 def memset(destination, value, length):
     for i in range(length):
         destination[i] = value
@@ -119,8 +119,22 @@ def memzero(destination, length):
     memset(destination, 0, length)
 
 
-db.signatures.append(SimpleSignature('noop', [Param('$retval', UINT_1)], [Param('$retval', UINT_1)]))
+@db.example(STRING_NUMERIC)
+def atoi(num):
+    return int(num[:strlen(num)])
 
+
+@db.example(STRING_HEX)
+def hextoi(num):
+    return int(str(num[:strlen(num)]), 16)
+
+
+@db.example(INT_1)
+def itoa(num):
+    return str(num)
+
+
+db.signatures.append(SimpleSignature('noop', [Param('$retval', INT_1)], [Param('$retval', INT_1)]))
 
 # todo - hexencoded versions
 #@db.example(STRING_25)
