@@ -1,4 +1,10 @@
 import hashlib
+import random
+
+
+def int32(n):
+    return n & 0xFFFFFFFF
+
 
 class Param(object):
     def __init__(self, name, value):
@@ -31,6 +37,7 @@ class PseudoBinaryData:
 
 
 INT_1 = 0x42192838
+INT_2 = 0x3787211
 STRING_25 = 'asifkewrfoerfperkgfergeor\0'
 STRING_15 = '94jfjdoisjfjjfj\0'
 STRING_10 = 'xcvwoxcvnw\0'
@@ -49,15 +56,34 @@ class SimpleSignature:
         self.func_name = func_name
         self.precondition = precondition
         self.postcondition = postcondition
+        self.preconditions = [precondition]
 
     def verify(self, results):
-        for name, value in results.iteritems():
-            if self.postconditions[name].value != value:
-                return False
+        for param in self.postcondition:
+            if param.name in results:
+                if results[param.name] != param.value:
+                    return False
         return True
 
-    def __str__(self):
-        return "<{}>".format(self.func_name)
+    def check(self, results):
+        for precondition, postcondition in results:
+            assert precondition == self.precondition
+            if not self.verify(postcondition):
+                return None
+        return self.func_name
+
+
+class ConstValueSignature:
+    def __init__(self):
+        tries = 3
+        self.preconditions = [[Param('$retval', random.randint(0, 1000000))]] * tries
+
+    def check(self, results):
+        const = results[0][1]['$retval']
+        for precondition, postcondition in results:
+            if postcondition['$retval'] != const:
+                return False
+        return 'const_val_' + str(const)
 
 
 class SignatureDatabase:
@@ -134,7 +160,28 @@ def itoa(num):
     return str(num)
 
 
+@db.example(INT_1, INT_2)
+def add(a, b):
+    return int32(a + b)
+
+
+@db.example(INT_1, INT_2)
+def sub(a, b):
+    return int32(a - b)
+
+
+@db.example(INT_1, INT_2)
+def mul(a, b):
+    return int32(a * b)
+
+@db.example(INT_1, INT_2)
+def div(a, b):
+    return int32(a / b)
+
+
 db.signatures.append(SimpleSignature('noop', [Param('$retval', INT_1)], [Param('$retval', INT_1)]))
+
+db.signatures.append(ConstValueSignature())
 
 # todo - hexencoded versions
 #@db.example(STRING_25)

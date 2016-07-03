@@ -62,9 +62,9 @@ class EmulationInstance(object):
         if debug:
             self.mu.hook_add(u.UC_HOOK_CODE, self.debug_hook_code)
 
-    def check_signature(self, sig):
+    def execute_and_get_results(self, precondition):
         memory = {}
-        for param in sig.precondition:
+        for param in precondition:
             if isinstance(param.value, basestring):
                 arg_value = self.allocate_string(param.value)
                 memory[param.name] = (arg_value, len(param.value))
@@ -79,20 +79,20 @@ class EmulationInstance(object):
         self.execute()
 
         results = {}
-        for param in sig.postcondition:
+        results['$retval'] = self.read_reg('eax')
+        for param in precondition:
             if param.name in memory:
                 addr, memlen = memory[param.name]
                 result = self.read_memory(addr, memlen)
                 results[param.name] = result
+        return results
 
-        return_value = self.read_reg('eax')
-        results['$retval'] = return_value
-
-        for param in sig.postcondition:
-            if param.name in results:
-                if results[param.name] != param.value:
-                    return False
-        return True
+    def check_signature(self, sig):
+        results = []
+        for precondition in sig.preconditions:
+            result = self.execute_and_get_results(precondition)
+            results.append((precondition, result))
+        return sig.check(results)
 
     def debug_hook_code(self, uc, address, size, user_data):
         print(">>> Tracing instruction at 0x%x, instruction size = %u" % (address, size))
@@ -155,8 +155,9 @@ def main():
         for sig in sigs.signatures:
             instance = emu.create_instance(i)
             try:
-                if instance.check_signature(sig):
-                    print 'signature {} found at offset {:x}'.format(sig, i)
+                result = instance.check_signature(sig)
+                if result:
+                    print 'signature {} found at offset {:x}'.format(result, i)
             except u.UcError:
                 pass
 
