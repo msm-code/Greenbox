@@ -3,8 +3,25 @@ import random
 import zlib
 
 
+INT_1 = 0x42192838
+INT_2 = 0x3787211
+STRING_25 = 'asifkewrfoerfperkgfergeor\0'
+STRING_15 = '94jfjdoisjfjjfj\0'
+STRING_10 = 'xcvwoxcvnw\0'
+BINARY_10 = 'asdfgasdfg'
+STRING_NUMERIC = '123543\0'
+STRING_HEX = 'a8d3cc\0'
+STRING_5 = 'odifd\0'
+BYTE_POSITIVE = ord('a')
+
+
 def int32(n):
     return n % (2**32)
+
+
+def get_function_arg_names(func):
+    argcount = func.func_code.co_argcount
+    return func.func_code.co_varnames[:argcount]
 
 
 class Param(object):
@@ -37,22 +54,6 @@ class PseudoBinaryData:
         return PseudoBinaryData(self.to_string())
 
 
-INT_1 = 0x42192838
-INT_2 = 0x3787211
-STRING_25 = 'asifkewrfoerfperkgfergeor\0'
-STRING_15 = '94jfjdoisjfjjfj\0'
-STRING_10 = 'xcvwoxcvnw\0'
-BINARY_10 = 'asdfgasdfg'
-STRING_NUMERIC = '123543\0'
-STRING_HEX = 'a8d3cc\0'
-STRING_5 = 'odifd\0'
-BYTE_POSITIVE = ord('a')
-
-def get_function_arg_names(func):
-    argcount = func.func_code.co_argcount
-    return func.func_code.co_varnames[:argcount]
-
-
 class SimpleSignature:
     def __init__(self, func_name, precondition, postcondition):
         self.func_name = func_name
@@ -73,6 +74,28 @@ class SimpleSignature:
             if not self.verify(postcondition):
                 return None
         return self.func_name
+
+
+class TransformSignature:
+    def __init__(self, transformer):
+        tries = 3
+        self.preconditions = []
+        for i in range(tries):
+            self.preconditions.append([
+                Param('$retval', random.randint(1, 100000)),
+                Param('num', random.randint(1, 100000))
+            ])
+        self.transformer = transformer
+
+    def verify(self, transforms):
+        return self.transformer(transforms)
+
+    def check(self, results):
+        transforms = []
+        for precondition, postcondition in results:
+            frm, to = precondition['num'], postcondition['$retval']
+            transforms.append((frm, to))
+        return self.verify(transforms)
 
 
 class ConstValueSignature:
@@ -115,7 +138,12 @@ class SignatureDatabase:
         self.signatures.append(sig)
         return func
 
+
 db = SignatureDatabase()
+
+db.signatures.append(SimpleSignature('noop', [Param('$retval', INT_1)], [Param('$retval', INT_1)]))
+db.signatures.append(ConstValueSignature())
+
 
 @db.example(STRING_15)
 def strlen(data):
@@ -186,31 +214,14 @@ def div(a, b):
     return int32(a / b)
 
 
-db.signatures.append(SimpleSignature('noop', [Param('$retval', INT_1)], [Param('$retval', INT_1)]))
+@db.example(BINARY_10)
+def adler32(data):
+    return int32(zlib.adler32(str(data)))
 
-db.signatures.append(ConstValueSignature())
 
-
-class TransformSignature:
-    def __init__(self, transformer):
-        tries = 3
-        self.preconditions = []
-        for i in range(tries):
-            self.preconditions.append([
-                Param('$retval', random.randint(1, 100000)),
-                Param('num', random.randint(1, 100000))
-            ])
-        self.transformer = transformer
-
-    def verify(self, transforms):
-        return self.transformer(transforms)
-
-    def check(self, results):
-        transforms = []
-        for precondition, postcondition in results:
-            frm, to = precondition['num'], postcondition['$retval']
-            transforms.append((frm, to))
-        return self.verify(transforms)
+@db.example(BINARY_10)
+def crc32(data):
+    return int32(zlib.crc32(str(data)))
 
 
 @db.transform
@@ -222,6 +233,7 @@ def add_const(transforms):
             return False
     return 'add_const_' + str(diff)
 
+
 @db.transform
 def xor_const(transforms):
     frm0, to0 = transforms[0]
@@ -230,33 +242,3 @@ def xor_const(transforms):
         if frm ^ diff != to:
             return False
     return 'xor_const_' + str(diff)
-
-
-
-# todo - hexencoded versions
-#@db.example(STRING_25)
-#def md5(data):
-#    return hashlib.md5(data).digest()
-#
-#
-#@db.example(STRING_25)
-#def sha1(data):
-#    return hashlib.sha1(data).digest()
-#
-#
-#@db.example(STRING_25)
-#def sha256(data):
-#    return hashlib.sha256(data).digest()
-#
-#
-#@db.example(STRING_15)
-#def identity(data):
-#    return data
-
-@db.example(BINARY_10)
-def adler32(data):
-    return int32(zlib.adler32(str(data)))
-
-@db.example(BINARY_10)
-def crc32(data):
-    return int32(zlib.crc32(str(data)))
