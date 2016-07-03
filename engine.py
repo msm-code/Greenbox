@@ -1,5 +1,7 @@
 import re
+import sys
 import struct
+import signatures
 
 import unicorn as u
 import unicorn.x86_const as x86
@@ -7,15 +9,6 @@ import unicorn.x86_const as x86
 
 def int32(i):
     return struct.unpack('<i', i)[0]
-
-
-class Param(object):
-    def __init__(self, name, value):
-        self.name = name
-        self.value = value
-
-    def __repr__(self):
-        return '<{}: {}>'.format(repr(self.name), repr(self.value))
 
 
 class Emulator(object):
@@ -69,6 +62,38 @@ class EmulationInstance(object):
         if debug:
             self.mu.hook_add(u.UC_HOOK_CODE, self.debug_hook_code)
 
+    def check_signature(self, sig):
+        memory = {}
+        for param in sig.precondition:
+            if isinstance(param.value, basestring):
+                arg_value = self.allocate_string(param.value)
+                memory[param.name] = (arg_value, len(param.value))
+            else:
+                arg_value = param.value
+
+            if param.name == '$retval':
+                self.set_reg('eax', arg_value)
+            else:
+                self.push_argument(arg_value)
+
+        self.execute()
+
+        results = {}
+        for param in sig.postcondition:
+            if param.name in memory:
+                addr, memlen = memory[param.name]
+                result = self.read_memory(addr, memlen)
+                results[param.name] = result
+
+        return_value = self.read_reg('eax')
+        results['$retval'] = return_value
+
+        for param in sig.postcondition:
+            if param.name in results:
+                if results[param.name] != param.value:
+                    return False
+        return True
+
     def debug_hook_code(self, uc, address, size, user_data):
         print(">>> Tracing instruction at 0x%x, instruction size = %u" % (address, size))
         eip = uc.reg_read(x86.UC_X86_REG_EIP)
@@ -105,109 +130,6 @@ class EmulationInstance(object):
         self.mu.emu_start(self.ADDR_STUB, self.ADDR_STUB+5, count=0x1000)
 
 
-class Signature(object):
-    precondition = []
-    postcondition = []
-
-    def check(self, emulator):
-        memory = {}
-        for param in self.precondition:
-            if param.name[0] == '$':
-                emulator.set_reg(param.name[1:], param.value)
-            elif isinstance(param.value, str):
-                addr = emulator.allocate_string(param.value)
-                emulator.push_argument(addr)
-                memory[param.name] = (addr, len(param.value))
-            else:
-                emulator.push_argument(param.value)
-
-        emulator.execute()
-
-        results = {}
-        for param in self.postcondition:
-            if param.name[0] == '$':
-                result = emulator.read_reg(param.name[1:])
-            else:
-                addr, memlen = memory[param.name]
-                result = emulator.read_memory(addr, memlen)
-            results[param.name] = result
-
-        for param in self.postcondition:
-            if results[param.name] != param.value:
-                return False
-        return True
-
-
-class MemcpySignature(Signature):
-    def __init__(self):
-        self.precondition = [
-            Param('destination', ' ' * 10),
-            Param('source', '12345'),
-            Param('num', 5),
-        ]
-        self.postcondition = [
-            Param('destination', '12345     '),
-            Param('source', '12345'),
-        ]
-
-
-class StrcpySignature(Signature):
-    def __init__(self):
-        self.precondition = [
-            Param('destination', ' ' * 10),
-            Param('source', '12345\0'),
-        ]
-        self.postcondition = [
-            Param('destination', '12345\0    '),
-            Param('source', '12345\0'),
-        ]
-
-
-class StrcatSignature(Signature):
-    def __init__(self):
-        self.precondition = [
-            Param('destination', 'abcde\0' + ' ' * 10),
-            Param('source', '12345\0'),
-        ]
-        self.postcondition = [
-            Param('destination', 'abcde12345\0' + ' ' * 5),
-            Param('source', '12345\0'),
-        ]
-
-
-class StrlenSignature(Signature):
-    def __init__(self):
-        self.precondition = [
-            Param('string', 'a' * 17 + '\0'),
-        ]
-        self.postcondition = [
-            Param('string', 'a' * 17 + '\0'),
-            Param('$eax', 17),
-        ]
-
-
-class MemsetSignature(Signature):
-    def __init__(self):
-        self.precondition = [
-            Param('string', 'a' * 17 + '\0'),
-            Param('const', 0x62),
-            Param('count', 10),
-        ]
-        self.postcondition = [
-            Param('string', 'b' * 10 + 'a' * 7 + '\0'),
-        ]
-
-
-class NoOpSignature(Signature):
-    def __init__(self):
-        self.precondition = [
-            Param('$eax', 0x123434),
-        ]
-        self.postcondition = [
-            Param('$eax', 0x123434),
-        ]
-
-
 def find_all_functions(raw):
     potential_funcs = set({})
     for match in re.finditer('\xE8(....)', raw):
@@ -222,27 +144,19 @@ def find_all_functions(raw):
 
 
 def main():
-    binary = open('/home/msm/test.out', 'rb').read()
+    binary = open(sys.argv[1], 'rb').read()
     emu = Emulator(binary)
 
     potential_funcs = find_all_functions(binary)
 
-    sigs = [
-        MemcpySignature(),
-        StrcpySignature(),
-        StrcatSignature(),
-        StrlenSignature(),
-        MemsetSignature(),
-        NoOpSignature(),
-    ]
+    sigs = signatures.db
 
     for i in sorted(potential_funcs):
-        for sig in sigs:
+        for sig in sigs.signatures:
             instance = emu.create_instance(i)
             try:
-                if sig.check(instance):
-                    print 'signature {} found at offset {:x}'.format(
-                        sig.__class__.__name__, i)
+                if instance.check_signature(sig):
+                    print 'signature {} found at offset {:x}'.format(sig, i)
             except u.UcError:
                 pass
 

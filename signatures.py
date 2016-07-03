@@ -1,0 +1,144 @@
+import hashlib
+
+
+class Param(object):
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+    def __repr__(self):
+        return '<{}: {}>'.format(repr(self.name), repr(self.value))
+
+
+class PseudoBinaryData:
+    def __init__(self, string):
+        self.data = [ord(c) for c in string]
+
+    def __setitem__(self, key, item):
+        if key >= len(self.data):
+            self.data += [0] * (1 + len(self.data) - key)
+        self.data[key] = item
+
+    def __getitem__(self, key):
+        if key > len(self.data):
+            return 0
+        return self.data[key]
+
+    def to_string(self):
+        return ''.join(chr(c) for c in self.data)
+
+    def clone(self):
+        return PseudoBinaryData(self.to_string())
+
+
+UINT_1 = 0x92192838
+STRING_25 = 'asifkewrfoerfperkgfergeor\0'
+STRING_15 = '94jfjdoisjfjjfj\0'
+STRING_10 = 'xcvwoxcvnw\0'
+STRING_5 = 'odifd\0'
+
+def get_function_arg_names(func):
+    argcount = func.func_code.co_argcount
+    return func.func_code.co_varnames[:argcount]
+
+
+class SimpleSignature:
+    def __init__(self, func_name, precondition, postcondition):
+        self.func_name = func_name
+        self.precondition = precondition
+        self.postcondition = postcondition
+
+    def verify(self, results):
+        for name, value in results.iteritems():
+            if self.postconditions[name].value != value:
+                return False
+        return True
+
+    def __str__(self):
+        return "<{}>".format(self.func_name)
+
+
+class SignatureDatabase:
+    def __init__(self):
+        self.signatures = []
+
+    def example(self, *args):
+        def decorator(func):
+            names = get_function_arg_names(func)
+            
+            values = [bytearray(arg) if isinstance(arg, basestring) else arg for arg in args]
+            return_value = func(*values)
+            #values = [arg.to_string() if isinstance(arg, PseudoBinaryData) else arg for arg in args]
+
+            preconditions = [Param(n, v) for n, v in zip(names, args)]
+            postconditions = [Param(n, v) for n, v in zip(names, values)]
+
+            if return_value is not None:
+                postconditions.append(Param('$retval', return_value))
+
+            # execute func with args
+            sig = SimpleSignature(func.__name__, preconditions, postconditions)
+            self.signatures.append(sig)
+            return func
+        return decorator
+
+db = SignatureDatabase()
+
+@db.example(STRING_15)
+def strlen(data):
+    return data.find('\0')
+
+
+@db.example(STRING_15, STRING_10, 10)
+def memcpy(destination, source, num):
+    for i in range(num):
+        destination[i] = source[i]
+
+
+@db.example(STRING_15, STRING_10)
+def strcpy(destination, source):
+    for i in range(strlen(source) + 1):
+        destination[i] = source[i]
+
+
+@db.example(STRING_5 + STRING_15, STRING_10)
+def strcat(destination, source):
+    start = strlen(destination)
+    for i in range(strlen(source)+1):
+        destination[start+i] = source[i]
+
+
+@db.example(STRING_15, ord('a'), 10)
+def memset(destination, value, length):
+    for i in range(length):
+        destination[i] = value
+
+
+@db.example(STRING_15, 10)
+def memzero(destination, length):
+    memset(destination, 0, length)
+
+
+db.signatures.append(SimpleSignature('noop', [Param('$retval', UINT_1)], [Param('$retval', UINT_1)]))
+
+
+# todo - hexencoded versions
+#@db.example(STRING_25)
+#def md5(data):
+#    return hashlib.md5(data).digest()
+#
+#
+#@db.example(STRING_25)
+#def sha1(data):
+#    return hashlib.sha1(data).digest()
+#
+#
+#@db.example(STRING_25)
+#def sha256(data):
+#    return hashlib.sha256(data).digest()
+#
+#
+#@db.example(STRING_15)
+#def identity(data):
+#    return data
+
