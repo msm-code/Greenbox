@@ -1,9 +1,10 @@
 import hashlib
 import random
+import zlib
 
 
 def int32(n):
-    return n & 0xFFFFFFFF
+    return n % (2**32)
 
 
 class Param(object):
@@ -41,6 +42,7 @@ INT_2 = 0x3787211
 STRING_25 = 'asifkewrfoerfperkgfergeor\0'
 STRING_15 = '94jfjdoisjfjjfj\0'
 STRING_10 = 'xcvwoxcvnw\0'
+BINARY_10 = 'asdfgasdfg'
 STRING_NUMERIC = '123543\0'
 STRING_HEX = 'a8d3cc\0'
 STRING_5 = 'odifd\0'
@@ -67,7 +69,7 @@ class SimpleSignature:
 
     def check(self, results):
         for precondition, postcondition in results:
-            assert precondition == self.precondition
+            assert all(c.value == precondition[c.name] for c in self.precondition)
             if not self.verify(postcondition):
                 return None
         return self.func_name
@@ -107,6 +109,11 @@ class SignatureDatabase:
             self.signatures.append(sig)
             return func
         return decorator
+
+    def transform(self, func):
+        sig = TransformSignature(func)
+        self.signatures.append(sig)
+        return func
 
 db = SignatureDatabase()
 
@@ -183,6 +190,49 @@ db.signatures.append(SimpleSignature('noop', [Param('$retval', INT_1)], [Param('
 
 db.signatures.append(ConstValueSignature())
 
+
+class TransformSignature:
+    def __init__(self, transformer):
+        tries = 3
+        self.preconditions = []
+        for i in range(tries):
+            self.preconditions.append([
+                Param('$retval', random.randint(1, 100000)),
+                Param('num', random.randint(1, 100000))
+            ])
+        self.transformer = transformer
+
+    def verify(self, transforms):
+        return self.transformer(transforms)
+
+    def check(self, results):
+        transforms = []
+        for precondition, postcondition in results:
+            frm, to = precondition['num'], postcondition['$retval']
+            transforms.append((frm, to))
+        return self.verify(transforms)
+
+
+@db.transform
+def add_const(transforms):
+    frm0, to0 = transforms[0]
+    diff = to0 - frm0
+    for frm, to in transforms:
+        if frm + diff != to:
+            return False
+    return 'add_const_' + str(diff)
+
+@db.transform
+def xor_const(transforms):
+    frm0, to0 = transforms[0]
+    diff = to0 ^ frm0
+    for frm, to in transforms:
+        if frm ^ diff != to:
+            return False
+    return 'xor_const_' + str(diff)
+
+
+
 # todo - hexencoded versions
 #@db.example(STRING_25)
 #def md5(data):
@@ -203,3 +253,10 @@ db.signatures.append(ConstValueSignature())
 #def identity(data):
 #    return data
 
+@db.example(BINARY_10)
+def adler32(data):
+    return int32(zlib.adler32(str(data)))
+
+@db.example(BINARY_10)
+def crc32(data):
+    return int32(zlib.crc32(str(data)))

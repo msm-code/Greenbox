@@ -38,12 +38,19 @@ class EmulationInstance(object):
 
     def __init__(self, emulator, func_addr):
         self.emulator = emulator
+        self.func_addr = func_addr
+
+        debug = False
+        if debug:
+            self.mu.hook_add(u.UC_HOOK_CODE, self.debug_hook_code)
+
+    def reset(self):
         self.args = []
         self.data_ptr = self.ADDR_DATA
 
         self.mu = u.Uc(u.UC_ARCH_X86, u.UC_MODE_32)
 
-        binary = emulator.binary
+        binary = self.emulator.binary
         binary_pages = (len(binary) / 0x1000) + 1
         self.mu.mem_map(self.ADDR_CODE, binary_pages * 0x1000)
         self.mu.mem_write(self.ADDR_CODE, binary)
@@ -54,15 +61,12 @@ class EmulationInstance(object):
         self.mu.mem_map(self.ADDR_STACK - stack_size, stack_size)
 
         self.mu.mem_map(self.ADDR_STUB, 1 * 0x1000)
-        rel = struct.pack('<I', self.ADDR_CODE - self.ADDR_STUB + func_addr - 5)
+        rel = struct.pack('<I', self.ADDR_CODE - self.ADDR_STUB + self.func_addr - 5)
         stub = '\xE8' + rel + '\x90'
         self.mu.mem_write(self.ADDR_STUB, stub)
 
-        debug = False
-        if debug:
-            self.mu.hook_add(u.UC_HOOK_CODE, self.debug_hook_code)
-
     def execute_and_get_results(self, precondition):
+        self.reset()
         memory = {}
         for param in precondition:
             if isinstance(param.value, basestring):
@@ -91,7 +95,8 @@ class EmulationInstance(object):
         results = []
         for precondition in sig.preconditions:
             result = self.execute_and_get_results(precondition)
-            results.append((precondition, result))
+            precondition_dict = {c.name: c.value for c in precondition}
+            results.append((precondition_dict, result))
         return sig.check(results)
 
     def debug_hook_code(self, uc, address, size, user_data):
