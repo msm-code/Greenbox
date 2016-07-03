@@ -14,14 +14,14 @@ My goal is to help kickstart reverse-engineering of complex codebases by recogni
 
 ## Technical summary
 
-Greenbox is purely blackbox analyser (so far, considering goal of this project, I don't see any sensible reason for adding static features).
+Greenbox is purely blackbox analyzer (so far, considering a goal of this project, I don't see any sensible reason for adding static features).
 
-Currently only supported mode is signature scan - every function detected in source binary is executed with some preconditions (i.e. parameters on stack), and than postconditions are checked.
+Currently only supported mode is signature scan - every function detected in source binary is executed with some preconditions (i.e. parameters on a stack), and then postconditions are checked.
 That means (simplifying things a bit) that when some function executed with parameters "2" and "3" gives back, we could guess that it's addition. Or when function called with string "banana" returns "72b302bf297a228a75730123efef7c41" we can be fairly sure that someone implemented md5.
 
 ## Example
 
-Simple reference and playground for implemented signatures can be found in repository (in reference.c file). But for the sake of example, let's consider following, simple C program:
+Simple reference and playground for implemented signatures can be found in a repository (in reference.c file). But for the sake of example, let's consider following, simple C program:
 
 ```c
 void memcpy(char *dst, char *src, int n) {
@@ -50,7 +50,7 @@ Now compile it:
 vagrant@precise64:/vagrant/greenbox$ gcc fun.c -o fun -std=c99 -m32
 ```
 
-And than test it:
+And then test it:
 
 ```
 vagrant@precise64:/vagrant/greenbox$ python engine.py fun
@@ -60,4 +60,4 @@ signature memset found at offset 434
 signature noop found at offset 4e2
 ```
   
-You can see that greenbox correctly recognised memset, memcpy and memzero, and even marked empty main function as no-op.
+You can see that greenbox correctly recognized memset, memcpy, and memzero, and even marked an empty main function as no-op.
