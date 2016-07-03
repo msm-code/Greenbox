@@ -163,6 +163,7 @@ def main():
                 result = instance.check_signature(sig)
                 if result:
                     print 'signature {} found at offset {:x}'.format(result, i)
+                    break
             except u.UcError:
                 pass
 

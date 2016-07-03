@@ -98,17 +98,17 @@ class TransformSignature:
         return self.verify(transforms)
 
 
-class ConstValueSignature:
-    def __init__(self):
-        tries = 3
-        self.preconditions = [[Param('$retval', random.randint(0, 1000000))]] * tries
-
-    def check(self, results):
-        const = results[0][1]['$retval']
-        for precondition, postcondition in results:
-            if postcondition['$retval'] != const:
-                return False
-        return 'const_val_' + str(const)
+#class ConstValueSignature:
+#    def __init__(self):
+#        tries = 3
+#        self.preconditions = [[Param('$retval', random.randint(0, 1000000))]] * tries
+#
+#    def check(self, results):
+#        const = results[0][1]['$retval']
+#        for precondition, postcondition in results:
+#            if postcondition['$retval'] != const:
+#                return False
+#        return 'const_val_' + str(const)
 
 
 class SignatureDatabase:
@@ -142,7 +142,7 @@ class SignatureDatabase:
 db = SignatureDatabase()
 
 db.signatures.append(SimpleSignature('noop', [Param('$retval', INT_1)], [Param('$retval', INT_1)]))
-db.signatures.append(ConstValueSignature())
+#db.signatures.append(ConstValueSignature())
 
 
 @db.example(STRING_15)
@@ -222,6 +222,11 @@ def adler32(data):
 @db.example(BINARY_10)
 def crc32(data):
     return int32(zlib.crc32(str(data)))
+
+
+#@db.example(INT_1)
+#def identity(num):
+#    return num
 
 
 @db.transform
