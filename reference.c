@@ -72,6 +72,20 @@ int imul(int a, int b) {
     return a * b;
 }
 
+char hexchar(int i) {
+    if (i >= 0 && i < 10) { return '0' + i; }
+    if (i >= 10 && i < 16) { return 'a' + i - 10; }
+    return '?';
+}
+
+void hexencode(unsigned char *str, char *outbuf) {
+    for (; *str; str++) {
+        *outbuf++ = hexchar(*str >> 4);
+	*outbuf++ = hexchar(*str & 15);
+    }
+    *outbuf = 0;
+}
+
 unsigned int crc32(unsigned char *message) {
    int i, j;
    unsigned int byte, crc, mask;
@@ -91,4 +105,7 @@ unsigned int crc32(unsigned char *message) {
 }
 
 int main() {
+    char d[1000];
+    hexencode("ala ma kota", d);
+    puts(d);
 }

@@ -126,7 +126,11 @@ class SignatureDatabase:
             postconditions = [Param(n, v) for n, v in zip(names, values)]
 
             if return_value is not None:
-                postconditions.append(Param('$retval', return_value))
+                if isinstance(return_value, basestring):
+                    preconditions += [Param('$outbuf', '\0' * len(return_value))]
+                    postconditions += [Param('$outbuf', return_value)]
+                else:
+                    postconditions.append(Param('$retval', return_value))
 
             sig = SimpleSignature(func.__name__, preconditions, postconditions)
             self.signatures.append(sig)
@@ -209,19 +213,81 @@ def sub(a, b):
 def mul(a, b):
     return int32(a * b)
 
+
 @db.example(INT_1, INT_2)
 def div(a, b):
     return int32(a / b)
 
 
-@db.example(BINARY_10)
-def adler32(data):
-    return int32(zlib.adler32(str(data)))
+@db.example(STRING_15, 10)
+def adler32(data, n):
+    return int32(zlib.adler32(str(data[:n])))
 
 
-@db.example(BINARY_10)
-def crc32(data):
-    return int32(zlib.crc32(str(data)))
+@db.example(STRING_15)
+def adler32_s(data):
+    return adler32(data, strlen(data))
+
+
+@db.example(STRING_15, 10)
+def crc32(data, n):
+    return int32(zlib.crc32(str(data[:n])))
+
+
+@db.example(STRING_15)
+def crc32_s(data):
+    return crc32(data, strlen(data))
+
+
+@db.example(STRING_15, 10)
+def base64encode(data, n):
+    return str(data[:n]).encode('base64').rstrip()
+
+
+@db.example(STRING_15)
+def base64encode_s(data):
+    return base64encode(data, strlen(data))
+
+
+@db.example(STRING_15, 10)
+def hexencode_lower(data, n):
+    return str(data[:n]).encode('hex')
+
+
+@db.example(STRING_15)
+def hexencode_lower_s(data):
+    return hexencode_lower(data, strlen(data))
+
+
+@db.example(STRING_15, 10)
+def hexencode_upper(data, n):
+    return str(data[:n]).encode('hex').upper()
+
+
+@db.example(STRING_15)
+def hexencode_upper_s(data):
+    return hexencode_upper(data, strlen(data))
+
+
+@db.example(STRING_15, 10)
+def md5(data, n):
+    return hashlib.md5(data[:n]).hexdigest()
+
+
+@db.example(STRING_15)
+def md5_s(data):
+    return md5(data, strlen(data))
+
+
+@db.example(STRING_15, 10)
+def sha1(data, n):
+    return hashlib.sha1(data[:n]).hexdigest()
+
+
+@db.example(STRING_15)
+def sha1_s(data):
+    return sha1(data, strlen(data))
+
 
 
 #@db.example(INT_1)
