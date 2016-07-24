@@ -81,7 +81,7 @@ char hexchar(int i) {
 void hexencode(unsigned char *str, char *outbuf) {
     for (; *str; str++) {
         *outbuf++ = hexchar(*str >> 4);
-	*outbuf++ = hexchar(*str & 15);
+        *outbuf++ = hexchar(*str & 15);
     }
     *outbuf = 0;
 }

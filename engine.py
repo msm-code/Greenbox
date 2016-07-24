@@ -12,14 +12,6 @@ def int32(i):
 
 
 class Emulator(object):
-    def __init__(self, binary):
-        self.binary = binary
-
-    def create_instance(self, func_addr):
-        return EmulationInstance(self, func_addr)
-
-
-class EmulationInstance(object):
     ADDR_DATA = 0x100000
     ADDR_STACK = 0x300000
     ADDR_STUB = 0x3FF000
@@ -36,37 +28,33 @@ class EmulationInstance(object):
         'ebp': x86.UC_X86_REG_EBP,
     }
 
-    def __init__(self, emulator, func_addr):
-        self.emulator = emulator
-        self.func_addr = func_addr
-
+    def __init__(self, binary):
         debug = False
         if debug:
             self.mu.hook_add(u.UC_HOOK_CODE, self.debug_hook_code)
 
-    def reset(self):
-        self.args = []
-        self.data_ptr = self.ADDR_DATA
-
         self.mu = u.Uc(u.UC_ARCH_X86, u.UC_MODE_32)
-
-        binary = self.emulator.binary
         binary_pages = (len(binary) / 0x1000) + 1
-        self.mu.mem_map(self.ADDR_CODE, binary_pages * 0x1000)
+        self.mu.mem_map(self.ADDR_CODE, binary_pages * 0x1000, u.UC_PROT_EXEC | u.UC_PROT_READ)
         self.mu.mem_write(self.ADDR_CODE, binary)
 
         self.mu.mem_map(self.ADDR_DATA, 10 * 0x1000)
 
         stack_size = 10 * 0x1000
-        self.mu.mem_map(self.ADDR_STACK - stack_size, stack_size)
+        self.mu.mem_map(self.ADDR_STACK - stack_size, stack_size, u.UC_PROT_ALL)
 
-        self.mu.mem_map(self.ADDR_STUB, 1 * 0x1000)
-        rel = struct.pack('<I', self.ADDR_CODE - self.ADDR_STUB + self.func_addr - 5)
+        self.mu.mem_map(self.ADDR_STUB, 1 * 0x1000, u.UC_PROT_ALL)
+
+    def prepare(self, func_addr):
+        self.args = []
+        self.data_ptr = self.ADDR_DATA
+
+        rel = struct.pack('<I', self.ADDR_CODE - self.ADDR_STUB + func_addr - 5)
         stub = '\xE8' + rel + '\x90'
         self.mu.mem_write(self.ADDR_STUB, stub)
 
+
     def execute_and_get_results(self, precondition):
-        self.reset()
         memory = {}
         for param in precondition:
             if isinstance(param.value, basestring):
@@ -91,9 +79,10 @@ class EmulationInstance(object):
                 results[param.name] = result
         return results
 
-    def check_signature(self, sig):
+    def check_signature(self, func_addr, sig):
         results = []
         for precondition in sig.preconditions:
+            self.prepare(func_addr)
             result = self.execute_and_get_results(precondition)
             precondition_dict = {c.name: c.value for c in precondition}
             results.append((precondition_dict, result))
@@ -152,17 +141,19 @@ def main():
     binary = open(sys.argv[1], 'rb').read()
     emu = Emulator(binary)
 
-    potential_funcs = find_all_functions(binary)
+    if len(sys.argv) > 2:
+        potential_funcs = [int(sys.argv[2], 16)]
+    else:
+        potential_funcs = find_all_functions(binary)
 
     sigs = signatures.db
 
-    for i in sorted(potential_funcs):
+    for func_addr in sorted(potential_funcs):
         for sig in sigs.signatures:
-            instance = emu.create_instance(i)
             try:
-                result = instance.check_signature(sig)
+                result = emu.check_signature(func_addr, sig)
                 if result:
-                    print 'signature {} found at offset {:x}'.format(result, i)
+                    print 'signature {} found at offset {:x}'.format(result, func_addr)
                     break
             except u.UcError:
                 pass
