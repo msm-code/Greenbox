@@ -5,10 +5,9 @@ import zlib
 
 INT_1 = 0x42192838
 INT_2 = 0x3787211
-STRING_25 = 'asifkewrfoerfperkgfergeor\0'
+STRING_50 = 'asifkewrfoerfperkgfergeorasifkewrfoerfperkgfergeor\0'
 STRING_15 = '94jfjdoisjfjjfj\0'
 STRING_10 = 'xcvwoxcvnw\0'
-BINARY_10 = 'asdfgasdfg'
 STRING_NUMERIC = '123543\0'
 STRING_HEX = 'a8d3cc\0'
 STRING_5 = 'odifd\0'
@@ -209,19 +208,40 @@ def sub(a, b):
 def mul(a, b):
     return int32(a * b)
 
+
 @db.example(INT_1, INT_2)
 def div(a, b):
     return int32(a / b)
 
 
-@db.example(BINARY_10)
-def adler32(data):
-    return int32(zlib.adler32(str(data)))
+@db.example(STRING_15, 10)
+def adler32_b(data, n):
+    return int32(zlib.adler32(str(data[:n])))
 
 
-@db.example(BINARY_10)
-def crc32(data):
-    return int32(zlib.crc32(str(data)))
+@db.example(STRING_15)
+def adler32_s(data):
+    return int32(zlib.adler32(str(data[:strlen(data)])))
+
+
+@db.example(STRING_15, 10)
+def crc32_b(data, n):
+    return int32(zlib.crc32(str(data[:n])))
+
+
+@db.example(STRING_15)
+def crc32_s(data):
+    return int32(zlib.crc32(str(data[:strlen(data)])))
+
+
+@db.example(STRING_15, 10, STRING_50)
+def md5_b(data, n, out):
+    memcpy(out, hashlib.md5(str(data[:n])).digest(), 16)
+
+
+@db.example(STRING_15, 10, STRING_50)
+def hex_md5_b(data, n, out):
+    memcpy(out, hashlib.md5(str(data[:n])).hexdigest(), 32)
 
 
 #@db.example(INT_1)
