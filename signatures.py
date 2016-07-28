@@ -5,10 +5,9 @@ import zlib
 
 INT_1 = 0x42192838
 INT_2 = 0x3787211
-STRING_25 = 'asifkewrfoerfperkgfergeor\0'
+STRING_50 = 'asifkewrfoerfperkgfergeorasifkewrfoerfperkgfergeor\0'
 STRING_15 = '94jfjdoisjfjjfj\0'
 STRING_10 = 'xcvwoxcvnw\0'
-BINARY_10 = 'asdfgasdfg'
 STRING_NUMERIC = '123543\0'
 STRING_HEX = 'a8d3cc\0'
 STRING_5 = 'odifd\0'
@@ -220,22 +219,42 @@ def div(a, b):
 
 
 @db.example(STRING_15, 10)
+<<<<<<< HEAD
+def adler32_b(data, n):
+=======
 def adler32(data, n):
+>>>>>>> 69085168e7c5991b4f76486e56a64201e0bbc278
     return int32(zlib.adler32(str(data[:n])))
 
 
 @db.example(STRING_15)
 def adler32_s(data):
+<<<<<<< HEAD
+    return int32(zlib.adler32(str(data[:strlen(data)])))
+
+
+@db.example(STRING_15, 10)
+def crc32_b(data, n):
+=======
     return adler32(data, strlen(data))
 
 
 @db.example(STRING_15, 10)
 def crc32(data, n):
+>>>>>>> 69085168e7c5991b4f76486e56a64201e0bbc278
     return int32(zlib.crc32(str(data[:n])))
 
 
 @db.example(STRING_15)
 def crc32_s(data):
+<<<<<<< HEAD
+    return int32(zlib.crc32(str(data[:strlen(data)])))
+
+
+@db.example(STRING_15, 10, STRING_50)
+def md5_b(data, n, out):
+    memcpy(out, hashlib.md5(str(data[:n])).digest(), 16)
+=======
     return crc32(data, strlen(data))
 
 
@@ -289,10 +308,9 @@ def sha1_s(data):
     return sha1(data, strlen(data))
 
 
-
-#@db.example(INT_1)
-#def identity(num):
-#    return num
+@db.example(STRING_15, 10, STRING_50)
+def hex_md5_b(data, n, out):
+    memcpy(out, hashlib.md5(str(data[:n])).hexdigest(), 32)
 
 
 @db.transform
