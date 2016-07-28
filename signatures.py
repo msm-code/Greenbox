@@ -219,43 +219,28 @@ def div(a, b):
 
 
 @db.example(STRING_15, 10)
-<<<<<<< HEAD
 def adler32_b(data, n):
-=======
-def adler32(data, n):
->>>>>>> 69085168e7c5991b4f76486e56a64201e0bbc278
     return int32(zlib.adler32(str(data[:n])))
 
 
 @db.example(STRING_15)
 def adler32_s(data):
-<<<<<<< HEAD
     return int32(zlib.adler32(str(data[:strlen(data)])))
 
 
 @db.example(STRING_15, 10)
 def crc32_b(data, n):
-=======
-    return adler32(data, strlen(data))
-
-
-@db.example(STRING_15, 10)
-def crc32(data, n):
->>>>>>> 69085168e7c5991b4f76486e56a64201e0bbc278
     return int32(zlib.crc32(str(data[:n])))
 
 
 @db.example(STRING_15)
 def crc32_s(data):
-<<<<<<< HEAD
     return int32(zlib.crc32(str(data[:strlen(data)])))
 
 
 @db.example(STRING_15, 10, STRING_50)
 def md5_b(data, n, out):
     memcpy(out, hashlib.md5(str(data[:n])).digest(), 16)
-=======
-    return crc32(data, strlen(data))
 
 
 @db.example(STRING_15, 10)
